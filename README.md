@@ -25,6 +25,13 @@ Feel free to open any pull requests!
 ### Planed for v1.3.0
 - [ ] give possibility to stream movies for not logged in users and account without premium subscriptions
 
+## Create package
+
+Package zip is created from source in `plugin.video.zalukaj`. To create another package marked as version `0.0.1` just type:
+```bash
+$ python make_package.py 0.0.1
+```
+
 ## Privacy
 
 Plugin use user credentials (login and password), to fetch session cookie from zalukaj.com. This cookie is used in

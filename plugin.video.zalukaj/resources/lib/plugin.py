@@ -9,12 +9,11 @@ import xbmc
 import xbmcaddon
 import xbmcgui
 import xbmcplugin
-from xbmcgui import ListItem
-from xbmcplugin import setResolvedUrl, addDirectoryItem, endOfDirectory
-
 from resources.lib import kodilogging
 from resources.lib.kodiutils import notification, get_setting_as_bool, get_setting
 from resources.lib.zalukaj import Zalukaj, ZalukajError
+from xbmcgui import ListItem
+from xbmcplugin import setResolvedUrl, addDirectoryItem, endOfDirectory
 
 ADDON = xbmcaddon.Addon()
 
@@ -84,8 +83,8 @@ def index():
             notification(header='[COLOR red]Błąd[/COLOR]', message=e.message, time=5000)
     else:
         xbmcgui.Dialog().ok("[COLOR red]Dostęp tylko dla konta VIP[/COLOR]",
-                            "Aktualnie wtyczka dostępna tylko dla zalogowanych",
-                            "Aby oglądać filmy zaloguj się w serwisie")
+                            "Aktualnie wtyczka dostępna tylko dla zalogowanych.",
+                            "Aby oglądać filmy zaloguj się w ustawieniach tego dodatku.")
         logout()
 
     # addDirectoryItem(plugin.handle, plugin.url_for(show_movies_section_list, "kind"),
