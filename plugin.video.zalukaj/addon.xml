@@ -11,8 +11,10 @@
         <provides>video</provides>
     </extension>
     <extension point="xbmc.addon.metadata">
-        <summary lang="en_GB">Kodi zalukaj video plugin</summary>
-        <description lang="en_GB"></description>
+        <summary lang="en_GB">Zalukaj</summary>
+        <summary lang="pl_PL">Zalukaj</summary>
+        <description lang="en_GB">Stream movies and tv series from zalukaj service.</description>
+        <description lang="pl_PL">Oglądaj filmy i seriale dostępne na portalu zalukaj.</description>
         <language></language>
         <platform>all</platform>
         <license>MIT</license>
@@ -24,6 +26,7 @@
         <disclaimer></disclaimer>
         <assets>
             <icon>icon.png</icon>
+            <fanart>fanart.jpg</fanart>
         </assets>
     </extension>
 </addon>
