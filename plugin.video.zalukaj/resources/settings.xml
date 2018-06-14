@@ -6,6 +6,12 @@
         <setting id="zalukaj_username" type="text" label="Login" default=""/>
         <setting id="zalukaj_password" type="text" label="Hasło" option="hidden" default=""/>
     </category>
+    <category label="Odtwarzanie">
+        <setting id="video.quality" type="enum" label="Preferowana jakość wideo"
+                 values="4K|2160p|1440p|1080p|720p|480p|360p|240p" default="0"/>
+        <setting id="video.version" type="enum" label="Preferowana wersja wideo"
+                 values="Lektor|Napisy PL|Angielska" default="0"/>
+    </category>
     <setting id="debug" type="bool" label="32001" default="true"/>
 </settings>
 

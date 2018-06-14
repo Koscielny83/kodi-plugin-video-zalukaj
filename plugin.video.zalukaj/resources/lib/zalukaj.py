@@ -234,15 +234,33 @@ class Zalukaj(object):
             url: string - address to stream for specified quality
         """
 
+        soup = self._get("https:{}".format(link))
+
+        return self.fetch_series_single_movie_from_player("{}{}&x=1".format(URL, soup.select_one('iframe')['src']))
+
+    def fetch_series_single_movie_from_player(self, link):
         def is_premium(ms):
             return len(ms.select('source')) > 0
 
-        soup = self._get("https:{}".format(link))
-        movie_soup = self._get("{}{}&x=1".format(URL, soup.select_one('iframe')['src']))
+        # Add domain URL hen not present
+        if "//zalukaj.com" not in link:
+            link = "{}{}".format(URL, link)
+
+        if link[0:2] == '//':
+            link = "https:{}".format(link)
+
+        movie_soup = self._get(link)
 
         # First try parse page as not logged in
         if is_premium(movie_soup):
-            return [{'quality': source['label'], 'url': source['src']} for source in movie_soup.select('source')]
+            versions = [{'version': source.string, 'url': source['href']} for source in
+                        movie_soup.select('div#buttonsPL a')]
+            streams = [{'quality': source['label'], 'url': source['src']} for source in movie_soup.select('source')]
+
+            return {
+                'streams': streams,
+                'versions': versions
+            }
 
         return None
 

@@ -17,11 +17,11 @@
         <description lang="pl_PL">Oglądaj filmy i seriale dostępne na portalu zalukaj.</description>
         <language></language>
         <platform>all</platform>
-        <license>MIT</license>
         <forum></forum>
-        <website></website>
         <email></email>
-        <source></source>
+        <license>MIT</license>
+        <website>https://github.com/signes-pl/kodi-repository</website>
+        <source>https://github.com/signes-pl/kodi-repository/tree/master/repository.signes</source>
         <news></news>
         <disclaimer></disclaimer>
         <assets>
