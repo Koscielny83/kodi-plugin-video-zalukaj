@@ -82,6 +82,8 @@ def index():
                                  ListItem("%s - %s" % (user.name.lower(), user.account_type)), True)
                 addDirectoryItem(plugin.handle, plugin.url_for(show_tv_series_list),
                                  ListItem("[COLOR=red]Seriale[/COLOR]"), True)
+                addDirectoryItem(plugin.handle, plugin.url_for(show_movies_section_list, "kind"),
+                                 ListItem("[COLOR=green]Filmy - gatunki[/COLOR]"), True)
         except ZalukajError as e:
             notification(header='[COLOR red]Błąd[/COLOR]', message=e.message, time=5000)
     else:
@@ -90,8 +92,6 @@ def index():
                             "Aby oglądać filmy zaloguj się w ustawieniach tego dodatku.")
         logout()
 
-    # addDirectoryItem(plugin.handle, plugin.url_for(show_movies_section_list, "kind"),
-    #                  ListItem("[COLOR=red]Filmy - gatunki[/COLOR]"), True)
     # addDirectoryItem(plugin.handle, plugin.url_for(show_movies_section_list, "popularity"),
     #                  ListItem("Filmy - najpopularniejsze"), True)
     # addDirectoryItem(plugin.handle, plugin.url_for(show_movies_section_list, "popularity"),
@@ -144,24 +144,29 @@ def show_tv_series_episodes_list(link_decoded):
         link = b64decode(link_decoded)
         for item in zalukaj.fetch_tv_series_episodes_list(link):
             list_item = ListItem(item['title'])
-            list_item.setArt({"thumb": item['img'], "poster": item['img'], "banner": item['img'], "icon": item['img'],
-                              "landscape": item['img'], "clearlogo": item['img'], "fanart": item['img']})
+            list_item.setArt({"thumb": item['img'],
+                              "poster": item['img'],
+                              "banner": item['img'],
+                              "icon": item['img'],
+                              "landscape": item['img'],
+                              "clearlogo": item['img'],
+                              "fanart": item['img']})
             list_item.setInfo('video', {"season": item['season'], "episode": item['episode']})
             list_item.setProperty('IsPlayable', 'true')
 
-            addDirectoryItem(plugin.handle, plugin.url_for(play_tv_series_episode, b64encode(item['url'])), list_item)
+            addDirectoryItem(plugin.handle, plugin.url_for(play_movie, b64encode(item['url'])), list_item)
     except ZalukajError as e:
         notification(header='[COLOR red]Błąd[/COLOR]', message=e.message, time=5000)
     endOfDirectory(plugin.handle)
 
 
-@plugin.route('/tv-series/play/<link_decoded>')
-def play_tv_series_episode(link_decoded):
+@plugin.route('/play/<link_decoded>')
+def play_movie(link_decoded):
     xbmcplugin.setContent(_handle, 'tvshows')
 
     try:
         link = b64decode(link_decoded)
-        data = zalukaj.fetch_series_single_movie(link)
+        data = zalukaj.fetch_movie_details(link)
         streams = data['streams']
         versions = data['versions']
 
@@ -202,7 +207,55 @@ def show_account():
 
 @plugin.route('/movies/<section>')
 def show_movies_section_list(section):
-    addDirectoryItem(plugin.handle, "", ListItem("Hello category %s!" % section))
+    try:
+        if section == "kind":
+            for item in zalukaj.fetch_movie_categories_list():
+                addDirectoryItem(plugin.handle,
+                                 plugin.url_for(show_movies_list, b64encode(item['url'])),
+                                 ListItem(item['title']),
+                                 True)
+
+    except ZalukajError as e:
+        notification(header='[COLOR red]Błąd[/COLOR]', message=e.message, time=5000)
+
+    endOfDirectory(plugin.handle)
+
+
+@plugin.route('/movies-list/<link_decoded>')
+def show_movies_list(link_decoded):
+    xbmcplugin.setContent(_handle, 'tvshows')
+
+    try:
+        link = b64decode(link_decoded)
+        for item in zalukaj.fetch_movies_list(link):
+            list_item = ListItem(item['title'])
+            if 'img' in item:
+                list_item.setArt({"thumb": item['img'],
+                                  "poster": item['img'],
+                                  "banner": item['img'],
+                                  "icon": item['img'],
+                                  "landscape": item['img'],
+                                  "clearlogo": item['img'],
+                                  "fanart": item['img']})
+
+            if 'nav' not in item:
+                list_item.setProperty('IsPlayable', 'true')
+                list_item.setInfo('video', {
+                    "year": item.get('year', None),
+                    "plot": item.get('description', ''),
+                    "plotoutline": item.get('description', ''),
+                    "title": item['title'],
+                })
+                addDirectoryItem(plugin.handle,
+                                 plugin.url_for(play_movie, b64encode(item['url'])),
+                                 list_item)
+            else:
+                addDirectoryItem(plugin.handle,
+                                 plugin.url_for(show_movies_list, b64encode(item['url'])),
+                                 list_item,
+                                 True)
+    except ZalukajError as e:
+        notification(header='[COLOR red]Błąd[/COLOR]', message=e.message, time=5000)
     endOfDirectory(plugin.handle)
 
 

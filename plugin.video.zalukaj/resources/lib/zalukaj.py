@@ -9,8 +9,14 @@ from bs4 import BeautifulSoup
 """ Main url address """
 URL = "https://zalukaj.com"
 
+""" Cookie name where session is stored """
+SESSION_COOKIE_NAME = "PHPSESSID"
+
 """ Maximum wait time for response"""
 REQUEST_TIMEOUT = 5
+
+""" File where cookies are storage """
+FILE_COOKIES_NAME = "zalukaj.cookie"
 
 
 class ZalukajError(Exception):
@@ -18,6 +24,10 @@ class ZalukajError(Exception):
 
 
 class ZalukajSuspiciousActivityError(ZalukajError):
+    pass
+
+
+class ZalukajLoginError(ZalukajError):
     pass
 
 
@@ -32,18 +42,22 @@ class ZalukajUser(object):
     def is_premium(self):
         return self.is_logged() and 'vip' in self.account_type.lower()
 
+    def __repr__(self):
+        return 'ZalukajUser<{}, {}>'.format(self.name.encode('utf-8'), self.account_type.encode('utf-8'))
+
 
 class Zalukaj(object):
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
         'Accept-Language': 'pl,en-US;q=0.9,en;q=0.8,fr;q=0.7',
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36',
-        'Referer': 'https://zalukaj.com/'
+        'Referer': 'https://zalukaj.com/',
+        'Origin': 'https://zalukaj.com/'
     }
 
-    def __init__(self, data_path):
-        cookies_file = os.path.join(data_path, 'zalukaj.cookie')  # Define path to cookies file
-        self.session = requests.Session()
+    def __init__(self, data_path, session=None):
+        cookies_file = os.path.join(data_path, FILE_COOKIES_NAME)  # Define path to cookies file
+        self.session = session if session else requests.Session()
         self.session.cookies = LWPCookieJar(cookies_file)
 
         # Load cookies if file exists
@@ -60,34 +74,58 @@ class Zalukaj(object):
         :return:
         """
 
+        """
+        Session is initialized if expected session cookie is present in request response.
+        """
+
         def initialize_session(response_cookies):
-            """
-            Session is initialized if expected session cookie is present in request response.
-            """
-            if response_cookies.get('__PHPSESSIDS') is not None:
+            if response_cookies.get(SESSION_COOKIE_NAME) is not None:
                 self.session.cookies.save()
                 return self.fetch_user_data()
 
             return ZalukajUser()
 
         headers = self.headers
+        """
+        First we have to fetch csrf hash token to perform login action.
+        To do this fetch main page raw html and take hash from form.
+        """
+        main_page_response = self.session.get(url=URL,
+                                              headers=headers,
+                                              allow_redirects=False,
+                                              timeout=REQUEST_TIMEOUT)
+
+        """
+        If hash is present, take it from known input.
+        If hash is not present we are probably logged in or account is blocked. Check known problems before fetching 
+        hash content.
+        """
+        self._detect_problems(main_page_response)
+        login_hash_obj = self._get_bs4(main_page_response.text).find('input', attrs={'name': 'hash'})
+        login_hash = login_hash_obj['value'] if login_hash_obj else None
+
+        """
+        When hash is present start login process using credentials.
+        """
         headers['Content-Type'] = 'application/x-www-form-urlencoded'
+        headers['X-Requested-With'] = 'XMLHttpRequest'
+        login_response = self.session.post(url='{}/ajax/login'.format(URL),
+                                           data='username={}&password={}&hash={}'.format(user, password, login_hash),
+                                           headers=headers,
+                                           allow_redirects=False,
+                                           timeout=REQUEST_TIMEOUT)
 
-        response = self.session.post(
-            url='{}/account.php'.format(URL),
-            data='login={}&password={}'.format(user, password),
-            headers=headers,
-            allow_redirects=False,
-            timeout=REQUEST_TIMEOUT
-        )
+        if "Zalogowano!" not in login_response.text:
+            raise ZalukajLoginError("Wystąpił problem z logowaniem.")
 
-        return initialize_session(response.cookies if response.cookies else [])
+        return initialize_session(login_response.cookies if login_response.cookies else {})
 
     def logout(self):
         """
         To logout just remove all cookies.
         """
         self.session.cookies.clear()
+        self.session.cookies.save()
 
     def fetch_user_data(self):
         """
@@ -224,17 +262,17 @@ class Zalukaj(object):
 
         return episodes
 
-    def fetch_series_single_movie(self, link):
+    def fetch_movie_details(self, link):
         """
-        Fetch tv series episode detail to play.
+        Fetch movie details to play.
 
         :param link: string - link to tv episode
-        :return: list | None - tv series episode details or None if can not fetch data.
-            quality: string - episode quality
+        :return: list | None - tv movie details or None if can not fetch data.
+            quality: string - stream quality
             url: string - address to stream for specified quality
         """
 
-        soup = self._get("https:{}".format(link))
+        soup = self._get(link)
 
         return self.fetch_series_single_movie_from_player("{}{}&x=1".format(URL, soup.select_one('iframe')['src']))
 
@@ -264,14 +302,143 @@ class Zalukaj(object):
 
         return None
 
+    def fetch_movie_categories_list(self):
+        """
+        Fetch list of all available movie categories.
+
+        :return: list of dicts with:
+            url: string - url to tv series episodes list,
+            title: string - tv series name
+        """
+
+        soup = self._get(URL)
+        collection = soup.select('table#one td a')
+        return [{'url': single['href'], 'title': single.text} for single in collection]
+
+    def fetch_movies_list(self, link):
+        """
+        Fetch list movies for given link.
+
+        :return: list of dicts with:
+            url: string - url to tv series episodes list,
+            title: string - tv series name
+            img: string - movie thumb,
+            description: string - movie short description
+        """
+
+        def get_navigation_links(navigation):
+            previous_page = None
+            next_page = None
+            current_page = navigation.select_one("span.pc_current")
+            if current_page:
+                current_page = int(current_page.text)
+                for item in navigation.select("a"):
+                    try:
+                        item_page = int(item.text)
+
+                        if current_page - 1 == item_page:
+                            previous_page = [
+                                item_page,
+                                item['href'] if item['href'][0:5] == 'https' else '{}{}'.format(URL, item['href'])
+                            ]
+                            continue
+
+                        if current_page + 1 == item_page:
+                            next_page = [
+                                item_page,
+                                item['href'] if item['href'][0:5] == 'https' else '{}{}'.format(URL, item['href'])
+                            ]
+                            continue
+                    except:
+                        pass
+
+            return previous_page, next_page
+
+        def get_movie_cover(cover_item):
+            """
+            :param cover_item: string - cover bs4 element
+            :return: string - link to movie cover
+            """
+            if cover_item and cover_item['style']:
+                reg = re.search('background-image:url\(([a-z0-9-_.:/)]+)\);', cover_item['style'], re.IGNORECASE)
+                if reg and len(reg.groups()) == 1:
+                    return reg.group(1) if reg.group(1)[0:5] == 'https' else '{}{}'.format(URL, reg.group(1))
+
+            return None
+
+        def get_movie_year(cover_item):
+            """
+            :param cover_item: string - cover bs4 element
+            :return: string - link to movie cover
+            """
+            if cover_item:
+                year = cover_item.select_one('p span')
+                try:
+                    return int(year.text)
+                except:
+                    return None
+
+            return None
+
+        if link[0:5] != 'https':
+            link = "{}{}".format(URL, link)
+
+        soup = self._get(link)
+        link_next, link_previous = get_navigation_links(soup.select_one("div.categories_page"))
+
+        # Fetch movies
+        movies = []
+        if link_next:
+            movies.append({'url': link_next[1],
+                           'title': '<< Wróć (strong {}) <<'.format(link_next[0]),
+                           'nav': True})
+        if link_previous:
+            movies.append({'url': link_previous[1],
+                           'title': '>> Dalej (strona {}) >>'.format(link_previous[0]),
+                           'nav': True})
+
+        for item in soup.select('div#index_content div.tivief4'):
+            item_link = item.select_one('div.rmk23m4 h3 a')
+            description = item.select_one('div.rmk23m4 > div')
+            movies.append({
+                'url': item_link['href'],
+                'img': get_movie_cover(item.select_one('div.im23jf')),
+                'year': get_movie_year(item.select_one('div.im23jf')),
+                'title': item_link['title'],
+                'description': description.text if description else ''
+            })
+
+        if link_next:
+            movies.append({'url': link_next[1],
+                           'title': '<< Wróć (strong {}) <<'.format(link_next[0]),
+                           'nav': True})
+        if link_previous:
+            movies.append({'url': link_previous[1],
+                           'title': '>> Dalej (strona {}) >>'.format(link_previous[0]),
+                           'nav': True})
+
+        return movies
+
     def _get(self, url):
         """
         :param url: string - url address to fetch and parse
         :return: BeautifulSoup
         """
-        response = self.session.get(url=url, headers=self.headers, allow_redirects=True, timeout=REQUEST_TIMEOUT)
+        response = self.session.get(url=url,
+                                    headers=self.headers,
+                                    allow_redirects=True,
+                                    timeout=REQUEST_TIMEOUT)
         self._detect_problems(response)
-        return BeautifulSoup(response.text, 'html.parser')
+        return self._get_bs4(response.text)
+
+    @staticmethod
+    def _get_bs4(text):
+        """
+        Return BS4 object from raw html.
+        :param text:
+        :return: BeautifulSoup
+        """
+        return BeautifulSoup(text, 'html.parser')
 
     @staticmethod
     def _detect_problems(response):
