@@ -206,7 +206,10 @@ class Zalukaj(object):
             except:
                 return text
 
-        soup = self._get("{}{}".format(URL, link))
+        if link[0:5] != "https":
+            link = "{}{}".format(URL, link)
+
+        soup = self._get(link)
 
         # Fetch image
         image = soup.select_one('div.blok2 div > img')
@@ -274,9 +277,9 @@ class Zalukaj(object):
 
         soup = self._get(link)
 
-        return self.fetch_series_single_movie_from_player("{}{}&x=1".format(URL, soup.select_one('iframe')['src']))
+        return self.fetch_movie_from_player("{}{}&x=1".format(URL, soup.select_one('iframe')['src']))
 
-    def fetch_series_single_movie_from_player(self, link):
+    def fetch_movie_from_player(self, link):
         def is_premium(ms):
             return len(ms.select('source')) > 0
 
@@ -404,8 +407,8 @@ class Zalukaj(object):
                 'url': item_link['href'],
                 'img': get_movie_cover(item.select_one('div.im23jf')),
                 'year': get_movie_year(item.select_one('div.im23jf')),
-                'title': item_link['title'],
-                'description': description.text if description else ''
+                'title': item_link['title'].encode('utf-8'),
+                'description': description.text.encode('utf-8') if description else ''
             })
 
         if link_next:
@@ -416,6 +419,39 @@ class Zalukaj(object):
             movies.append({'url': link_previous[1],
                            'title': '>> Dalej (strona {}) >>'.format(link_previous[0]),
                            'nav': True})
+
+        return movies
+
+    def search_movies(self, search_phrase):
+        link = "{}/v2/ajax/load.search?html=1&q={}".format(URL, search_phrase)
+        soup = self._get(link)
+
+        def get_movie_year(el):
+            if not el:
+                return None
+
+            try:
+                text = el.text.encode('utf-8')
+                reg = re.search('^([0-9]{4}).*', text, re.IGNORECASE)
+                return int(reg.group(1))
+            except:
+                return None
+
+        movies = []
+        for item in soup.select('div.row'):
+            cover = item.select_one('div.thumb img')
+            data = item.select_one('div.details div.title a')
+            description = item.select_one('div.desc')
+            if data:
+                is_tv_series = re.search('.*/serial.*', data['href'])
+                movies.append({
+                    'url': data['href'] if data['href'][0:5] == 'https' else '{}{}'.format(URL, data['href']),
+                    'img': cover['src'] if cover else None,
+                    'year': get_movie_year(item.select_one('div.details div.gen')),
+                    'title': data['title'].encode('utf-8'),
+                    'description': description.text.encode('utf-8') if description else '',
+                    'tv_series': True if is_tv_series else False
+                })
 
         return movies
 

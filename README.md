@@ -13,16 +13,14 @@ Feel free to open any pull requests!
 - [x] give possibility to list movies by genre
 - [x] stream movies (with quality select)
 - [x] updated unit and functional tests
+- [x] documentation with tutorial about installation and usage
 - [ ] give possibility to list last added / streamed movies
-- [ ] documentation with tutorial about installation and usage
+- [x] add search
 
 ### Planed for v1.1.0
 - [ ] improve tv series and movies listing GUI (add descriptions and other properties)
 
 ### Planed for v1.2.0
-- [ ] add search
-
-### Planed for v1.3.0
 - [ ] give possibility to stream movies for not logged in users and account without premium subscriptions
 
 ## Create package

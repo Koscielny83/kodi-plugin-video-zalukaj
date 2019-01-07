@@ -1,3 +1,4 @@
+import re
 import unittest
 
 from resources.lib.zalukaj import Zalukaj
@@ -23,7 +24,6 @@ class TestStringMethods(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        pass
         cls.z.session.cookies.clear()
         cls.z.session.cookies.save()
 
@@ -75,14 +75,13 @@ class TestStringMethods(unittest.TestCase):
         self.assertGreater(resp[0]['season'], 0)
         self.assertGreater(resp[0]['episode'], 0)
 
-    def test_fetch_series_single_movie_from_player(self):
-        resp = self.z.fetch_tv_series_episodes_list('/kategoria-serialu/773656,1/simpsonowie_the_simpsons_sezon_30/')
+    def test_search_movies(self):
+        resp = self.z.search_movies('futurama')
         self.assertGreater(len(resp), 0)
-        self.assertIn('img', resp[0])
-        self.assertIn('title', resp[0])
-        self.assertIn('episode', resp[0])
-        self.assertIn('season', resp[0])
-        self.assertIn('url', resp[0])
-        self.assertRegexpMatches(resp[0]['url'], "^https://zalukaj.com/serial-online/[0-9]+/[a-z0-9-]+.html$")
-        self.assertGreater(resp[0]['season'], 0)
-        self.assertGreater(resp[0]['episode'], 0)
+        for item in resp:
+            self.assertIn('img', item)
+            self.assertIn('title', item)
+            self.assertIn('url', item)
+            self.assertIn('description', item)
+            self.assertIn('year', item)
+            self.assertRegexpMatches(item['title'], re.compile("(futurama)", re.IGNORECASE))

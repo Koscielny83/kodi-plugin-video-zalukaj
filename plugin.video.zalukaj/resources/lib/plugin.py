@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import json
 import logging
 import sys
 from base64 import b64encode, b64decode
@@ -81,9 +81,11 @@ def index():
                 addDirectoryItem(plugin.handle, plugin.url_for(show_account),
                                  ListItem("%s - %s" % (user.name.lower(), user.account_type)), True)
                 addDirectoryItem(plugin.handle, plugin.url_for(show_tv_series_list),
-                                 ListItem("[COLOR=red]Seriale[/COLOR]"), True)
+                                 ListItem("[COLOR=lime]Seriale[/COLOR]"), True)
                 addDirectoryItem(plugin.handle, plugin.url_for(show_movies_section_list, "kind"),
-                                 ListItem("[COLOR=green]Filmy - gatunki[/COLOR]"), True)
+                                 ListItem("[COLOR=lime]Filmy - gatunki[/COLOR]"), True)
+                addDirectoryItem(plugin.handle, plugin.url_for(show_search),
+                                 ListItem("[COLOR=gold]Szukaj[/COLOR]"), True)
         except ZalukajError as e:
             notification(header='[COLOR red]Błąd[/COLOR]', message=e.message, time=5000)
     else:
@@ -98,8 +100,6 @@ def index():
     #                  ListItem("Filmy - ostatnio dodane"), True)
     # addDirectoryItem(plugin.handle, plugin.url_for(show_movies_section_list, "popularity"),
     #                  ListItem("Filmy - ostatnio oglądane"), True)
-    # addDirectoryItem(plugin.handle, plugin.url_for(show_search),
-    #                  ListItem("[COLOR=green]Szukaj[/COLOR]"), True)
 
     endOfDirectory(plugin.handle)
 
@@ -120,7 +120,7 @@ def show_tv_series_list():
 
 @plugin.route('/tv-series/seasons/<link_decoded>')
 def show_tv_series_seasons_list(link_decoded):
-    xbmcplugin.setContent(_handle, 'tvshows')
+    xbmcplugin.setContent(_handle, 'seasons')
 
     try:
         link = b64decode(link_decoded)
@@ -138,7 +138,7 @@ def show_tv_series_seasons_list(link_decoded):
 
 @plugin.route('/tv-series/episodes/<link_decoded>')
 def show_tv_series_episodes_list(link_decoded):
-    xbmcplugin.setContent(_handle, 'tvshows')
+    xbmcplugin.setContent(_handle, 'episodes')
 
     try:
         link = b64decode(link_decoded)
@@ -162,7 +162,7 @@ def show_tv_series_episodes_list(link_decoded):
 
 @plugin.route('/play/<link_decoded>')
 def play_movie(link_decoded):
-    xbmcplugin.setContent(_handle, 'tvshows')
+    xbmcplugin.setContent(_handle, 'movies')
 
     try:
         link = b64decode(link_decoded)
@@ -172,7 +172,7 @@ def play_movie(link_decoded):
 
         if versions and len(versions) > 1:
             selected_version = xbmcgui.Dialog().select("Wybór wersji wideo", [item['version'] for item in versions])
-            data = zalukaj.fetch_series_single_movie_from_player(versions[selected_version]['url'])
+            data = zalukaj.fetch_movie_from_player(versions[selected_version]['url'])
             streams = data['streams']
 
         if not streams or len(streams) == 0:
@@ -189,12 +189,6 @@ def play_movie(link_decoded):
 
     except ZalukajError as e:
         notification(header='[COLOR red]Błąd[/COLOR]', message=e.message, time=5000)
-
-
-@plugin.route('/search')
-def show_search():
-    addDirectoryItem(plugin.handle, "", ListItem("Hello category %s!"))
-    endOfDirectory(plugin.handle)
 
 
 @plugin.route('/account')
@@ -223,7 +217,7 @@ def show_movies_section_list(section):
 
 @plugin.route('/movies-list/<link_decoded>')
 def show_movies_list(link_decoded):
-    xbmcplugin.setContent(_handle, 'tvshows')
+    xbmcplugin.setContent(_handle, 'movies')
 
     try:
         link = b64decode(link_decoded)
@@ -254,6 +248,46 @@ def show_movies_list(link_decoded):
                                  plugin.url_for(show_movies_list, b64encode(item['url'])),
                                  list_item,
                                  True)
+    except ZalukajError as e:
+        notification(header='[COLOR red]Błąd[/COLOR]', message=e.message, time=5000)
+    endOfDirectory(plugin.handle)
+
+
+@plugin.route('/search')
+def show_search():
+    xbmcplugin.setContent(_handle, 'movies')
+    try:
+        search_phrase = xbmcgui.Dialog().input('Szukaj filmu', type=xbmcgui.INPUT_ALPHANUM)
+        if search_phrase:
+            for item in zalukaj.search_movies(search_phrase):
+                list_item = ListItem(item['title'])
+                if 'img' in item:
+                    list_item.setArt({"thumb": item['img'],
+                                      "poster": item['img'],
+                                      "banner": item['img'],
+                                      "icon": item['img'],
+                                      "landscape": item['img'],
+                                      "clearlogo": item['img'],
+                                      "fanart": item['img']})
+
+                list_item.setInfo('video', {
+                    "year": item.get('year', None),
+                    "plot": item.get('description', ''),
+                    "plotoutline": item.get('description', ''),
+                    "title": item['title'],
+                })
+
+                if item.get('tv_series') is True:
+                    addDirectoryItem(plugin.handle,
+                                     plugin.url_for(show_tv_series_seasons_list, b64encode(item['url'])),
+                                     list_item,
+                                     True)
+                else:
+                    list_item.setProperty('IsPlayable', 'true')
+                    addDirectoryItem(plugin.handle,
+                                     plugin.url_for(play_movie, b64encode(item['url'])),
+                                     list_item)
+
     except ZalukajError as e:
         notification(header='[COLOR red]Błąd[/COLOR]', message=e.message, time=5000)
     endOfDirectory(plugin.handle)
